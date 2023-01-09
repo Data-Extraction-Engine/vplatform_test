@@ -1,0 +1,81 @@
+version: 2
+jobs:
+  build:
+    working_directory: ~/kansohq/vista-platform
+    branches:
+      only:
+        - master
+        - staging
+        - develop
+        - /feature/.*/
+        - /hotfix/.*/
+        - /release/.*/
+    docker:
+      - image: circleci/ruby:2.5.1-node-browsers
+        environment:
+          PGHOST: 127.0.0.1
+          PGUSER: root
+          RAILS_ENV: test
+      - image: circleci/postgres:9.6.3-alpine
+        environment:
+          POSTGRES_USER: root
+          POSTGRES_DB: vista-platform_test
+    steps:
+      - checkout
+
+      # Restore bundle cache
+      - type: cache-restore
+        key: vista-platform-{{ checksum "Gemfile.lock" }}
+
+      # Bundle install dependencies
+      - run: bundle install --path vendor/bundle
+
+      # Store bundle cache
+      - type: cache-save
+        key: vista-platform-{{ checksum "Gemfile.lock" }}
+        paths:
+          - vendor/bundle
+
+      - restore_cache:
+          keys:
+            - yarn-cache-{{ .Branch }}-{{ checksum "yarn.lock" }}
+            - yarn-cache-{{ .Branch }}
+            - yarn-cache
+
+      - run: yarn install
+
+      - save_cache:
+          key: yarn-cache-{{ .Branch }}-{{ checksum "yarn.lock" }}
+          paths:
+            - node_modules
+
+      # Database setup
+      # Wait for DB
+      - run: dockerize -wait tcp://localhost:5432 -timeout 1m
+      # Install pg_dump
+      # - run: sudo apt-get install postgresql-client --fix-missing
+      # Add the Postgres 9.6.3 binaries to the path.
+      # - run: echo '/usr/lib/postgresql/9.6.3/bin/:$PATH' >> $BASH_ENV
+
+      - run: bin/rails db:create
+      - run: bin/rails db:migrate
+
+      # - run:
+      #     name: Install PhantomJS
+      #     command: |
+      #       sudo curl --output /tmp/phantomjs https://s3.amazonaws.com/circle-downloads/phantomjs-2.1.1
+      #       sudo chmod ugo+x /tmp/phantomjs
+      #       sudo ln -sf /tmp/phantomjs /usr/local/bin/phantomjs
+
+      # - run:
+      #     name: Install xsltproc
+      #     command: sudo apt-get install xsltproc
+
+      - run: NODE_ENV=test bin/rails webpacker:compile
+
+      # Run tests
+      - run: bin/rspec --format progress --format RspecJunitFormatter -o /tmp/reports/rspec.xml
+
+      # Save artifacts
+      - store_test_results:
+          path: /tmp/reports

@@ -1,0 +1,21 @@
+FROM ruby:2.7.2
+# Operating system dependencies
+RUN apt update
+WORKDIR /src
+COPY Gemfile  Gemfile.lock /src/
+#RUN bundle update mimemagic
+RUN bundle install
+#RUN bundle update --conservative mimemagic 
+#ENTRYPOINT ["sleep","300"]
+# Application dependencies
+COPY . /src
+#RUN bundle update mimemagic
+RUN bundle install
+RUN yarn install --check-files
+#Source code
+#RUN cd slate 
+#RUN  bundle
+ENTRYPOINT ["bundle", "exec", "rails", "s", "-b" ,"0.0.0.0"]
+#ENTRYPOINT ["/src/bin/invoker" ,"start","Procfile.dev"]
+#RUN cd slate 
+

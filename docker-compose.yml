@@ -1,0 +1,46 @@
+version: '3'
+services:
+ db:
+  image: postgres
+  environment:
+   POSTGRES_PASSWORD: password
+   VISTA-PLATFORM_DATABASE_PASSWORD: password
+   POSTGRES_DB: vista-platform_development
+  ports:
+   - '5432:5432'
+ redis:
+  image: 'bitnami/redis:latest'
+  environment:
+   - ALLOW_EMPTY_PASSWORD=yes
+ web:
+  build:
+   args:
+    - CLOUDFRONT_ACCESS_KEY_ID
+    - CLOUDFRONT_PRIVATE_KEY
+    - ASSET_HOST
+    - CARRIERWAVE_ASSET_HOST
+  #  env_file: d.env
+  volumes:
+   - '.:/www'
+  command: bundle exec rpush start -e production -f
+  ports:
+   - '3000:3000'
+  depends_on:
+   - redis
+   - db
+ worker:
+  build:
+   args:
+    - CLOUDFRONT_ACCESS_KEY_ID
+    - CLOUDFRONT_PRIVATE_KEY
+    - ASSET_HOST
+    - CARRIERWAVE_ASSET_HOST
+  #  env_file: d.env
+  volumes_from:
+   - web
+  command: bundle exec sidekiq
+  environment:
+   ASSET_HOST: http://assets.vista.test
+  links:
+   - redis
+   - db
